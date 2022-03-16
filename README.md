@@ -1,2 +1,2 @@
-# VGGFace
-VGGFace in TFv2
+# resnet50
+ ResNet50 updated to tensorflow v2.
