@@ -23,3 +23,6 @@ class VGGFaceTest(unittest.TestCase):
         logging.info(pred)
         self.assertIn('A._J._Buckley', pred[0][0][0])
         self.assertAlmostEqual(pred[0][0][1], 0.91819614, places=3)
+
+    def test_vggface_resnet50_features(self) -> None:
+        pass
