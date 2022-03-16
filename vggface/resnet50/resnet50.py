@@ -18,15 +18,11 @@ from tensorflow.keras.layers import (
 from tensorflow.keras.utils import get_file
 
 from .layers import identity_block, conv2d_block
-from ..utils import get_input_shape
 
-
-WEIGHTS_PATH = 'https://github.com/rcmalli/keras-vggface/releases/download/v2.0/rcmalli_vggface_tf_resnet50.h5'
-WEIGHTS_PATH_NO_TOP = 'https://github.com/rcmalli/keras-vggface/releases/download/v2.0/rcmalli_vggface_tf_notop_resnet50.h5'
 CACHE_DIR = 'models/vggface'
-
-V1_LABELS_PATH = 'https://github.com/rcmalli/keras-vggface/releases/download/v2.0/rcmalli_vggface_labels_v1.npy'
-V2_LABELS_PATH = 'https://github.com/rcmalli/keras-vggface/releases/download/v2.0/rcmalli_vggface_labels_v2.npy'
+WEIGHTS_PATH = 'https://github.com/claudiourbina/VGGFace/releases/download/v1.0/resnet50.h5'
+WEIGHTS_PATH_NO_TOP = 'https://github.com/claudiourbina/VGGFace/releases/download/v1.0/resnet50_no_top.h5'
+LABELS_PATH = 'https://github.com/claudiourbina/VGGFace/releases/download/v1.0/labels.npy'
 
 
 class ResNet50:
@@ -43,14 +39,7 @@ class ResNet50:
         self._classes = classes
         self._weights = "vggface"
         
-        self._input_shape = get_input_shape(
-            input_shape,
-            default_size=224,
-            min_size=32,
-            data_format=K.image_data_format(),
-            require_flatten=include_top,
-            weights=self._weights
-        )
+        self._input_shape = input_shape
         
         self._bn_axis = 3 if K.image_data_format() == 'channels_last' else 1
         self._model = self._build()
@@ -60,6 +49,8 @@ class ResNet50:
     ):
 
         inp = Input(shape=self._input_shape)
+
+        # first stage
         x = Conv2D(
             filters=64,
             kernel_size=(7, 7),
@@ -232,75 +223,44 @@ class ResNet50:
 
         model = Model(inputs=inp, outputs=x, name='resnet50')
 
-        if self._weights == 'vggface':
-            if self._include_top:
-                weights_path = get_file(
-                    'rcmalli_vggface_tf_resnet50.h5',
-                    WEIGHTS_PATH,
-                    cache_subdir=CACHE_DIR
-                )
-            else:
-                weights_path = get_file(
-                    'rcmalli_vggface_tf_notop_resnet50.h5',
-                    WEIGHTS_PATH_NO_TOP,
-                    cache_subdir=CACHE_DIR
-                )
-            model.load_weights(weights_path)
-
-            if K.image_data_format() == "channel_first" and K.backend() == "tensorflow":
-                warnings.warn(
-                    'You are using the TensorFlow backend, yet you '
-                    'are using the Theano '
-                    'image data format convention '
-                    '(`image_data_format="channels_first"`). '
-                    'For best performance, set '
-                    '`image_data_format="channels_last"` in '
-                    'your Keras config '
-                    'at ~/.keras/keras.json.'
-                )
-        elif self._weights is not None:
-            model.load_weights(self._weights)
+        if self._include_top:
+            weights_path = get_file(
+                'resnet50.h5',
+                WEIGHTS_PATH,
+                cache_subdir=CACHE_DIR
+            )
+        else:
+            weights_path = get_file(
+                'resnet50_no_top.h5',
+                WEIGHTS_PATH_NO_TOP,
+                cache_subdir=CACHE_DIR
+            )
+        model.load_weights(weights_path)
 
         return model
 
     def _preprocessing(
         self,
         x,
-        data_format=None,
-        version:int=2
+        data_format=None
     ):  
         _x = np.copy(x)
         if data_format is None:
             data_format = K.image_data_format()
         assert data_format in {'channels_last', 'channels_first'}
 
-        if version==1:
-            if data_format == 'channels_first':
-                _x = _x[:, ::-1, ...]
-                _x[:, 0, :, :] -= 93.5940
-                _x[:, 1, :, :] -= 104.7624
-                _x[:, 2, :, :] -= 129.1863
-            else:
-                _x = _x[..., ::-1]
-                _x[..., 0] -= 93.5940
-                _x[..., 1] -= 104.7624
-                _x[..., 2] -= 129.1863
-
-        elif version == 2:
-            if data_format == 'channels_first':
-                _x = _x[:, ::-1, ...]
-                _x[:, 0, :, :] -= 91.4953
-                _x[:, 1, :, :] -= 103.8827
-                _x[:, 2, :, :] -= 131.0912
-            else:
-                _x = _x[..., ::-1]
-                _x[..., 0] -= 91.4953
-                _x[..., 1] -= 103.8827
-                _x[..., 2] -= 131.0912
+        if data_format == 'channels_first':
+            _x = _x[:, ::-1, ...]
+            _x[:, 0, :, :] -= 91.4953
+            _x[:, 1, :, :] -= 103.8827
+            _x[:, 2, :, :] -= 131.0912
         else:
-            raise NotImplementedError
+            _x = _x[..., ::-1]
+            _x[..., 0] -= 91.4953
+            _x[..., 1] -= 103.8827
+            _x[..., 2] -= 131.0912
 
-        return _x        
+        return _x
 
 
     def predict(
@@ -319,34 +279,33 @@ class ResNet50:
         y,
         top:int=5
     ):
-        LABELS = None
-        if len(y.shape) == 2:
-            if y.shape[1] == 2622:
-                fpath = get_file('rcmalli_vggface_labels_v1.npy',
-                                V1_LABELS_PATH,
-                                cache_subdir=CACHE_DIR)
-                LABELS = np.load(fpath)
-            elif y.shape[1] == 8631:
-                fpath = get_file('rcmalli_vggface_labels_v2.npy',
-                                V2_LABELS_PATH,
-                                cache_subdir=CACHE_DIR)
-                LABELS = np.load(fpath)
+        if self._include_top:
+            if len(y.shape) == 2:
+                if y.shape[1] == self._classes:
+                    fpath = get_file(
+                        'labels.npy',
+                        LABELS_PATH,
+                        cache_subdir=CACHE_DIR
+                    )
+                    LABELS = np.load(fpath)
+                else:
+                    raise ValueError('`decode_predictions` expects '
+                                    'a batch of predictions '
+                                    '(i.e. a 2D array of shape (samples, 2622)) for V1 or '
+                                    '(samples, 8631) for V2.'
+                                    'Found array with shape: ' + str(y.shape))
             else:
                 raise ValueError('`decode_predictions` expects '
                                 'a batch of predictions '
                                 '(i.e. a 2D array of shape (samples, 2622)) for V1 or '
                                 '(samples, 8631) for V2.'
                                 'Found array with shape: ' + str(y.shape))
+            results = []
+            for pred in y:
+                top_indices = pred.argsort()[-top:][::-1]
+                result = [[str(LABELS[i].encode('utf8')), pred[i]] for i in top_indices]
+                result.sort(key=lambda x: x[1], reverse=True)
+                results.append(result)
+            return results
         else:
-            raise ValueError('`decode_predictions` expects '
-                            'a batch of predictions '
-                            '(i.e. a 2D array of shape (samples, 2622)) for V1 or '
-                            '(samples, 8631) for V2.'
-                            'Found array with shape: ' + str(y.shape))
-        results = []
-        for pred in y:
-            top_indices = pred.argsort()[-top:][::-1]
-            result = [[str(LABELS[i].encode('utf8')), pred[i]] for i in top_indices]
-            result.sort(key=lambda x: x[1], reverse=True)
-            results.append(result)
-        return results
+            raise Exception("Can't postprocess without top.")
