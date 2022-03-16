@@ -1,7 +1,6 @@
 from setuptools import find_packages
 from setuptools import setup
 
-from vggface.__version__ import __version__
 
 REQUIRED_PACKAGES = []
 with open('requirements.txt') as file:
@@ -9,7 +8,7 @@ with open('requirements.txt') as file:
 
 setup(
     name="resnet50",
-    version=__version__,
+    version="v1.0.0",
     description="ResNet50 for TFv2",
     url="https://github.com/claudiourbina/resnet50",
     author="Claudio Urbina",
